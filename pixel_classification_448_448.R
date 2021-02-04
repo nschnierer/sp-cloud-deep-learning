@@ -8,10 +8,7 @@ library(stars)
 library(raster)
 library(reticulate)
 library(mapview)
-
-#download.file("https://uni-muenster.sciebo.de/s/SOjP7fRGBRztn9z/download",destfile = "tutorial_data.zip")
-#unzip("./tutorial_data.zip")
-#setwd("./tutorial_data/")
+library(magick)
 
 
 #initiate an empty model
@@ -340,12 +337,12 @@ dl_prepare_data <- function(files=NULL, train, predict=FALSE, subsets_path=NULL,
 
 #get paths 
 files <- data.frame(
-  img = list.files("./T32UMB_20200807T102559/images", full.names = TRUE, pattern = "*.jpg"),
-  mask = list.files("./T32UMB_20200807T102559/masks", full.names = TRUE, pattern = "*.jpg")
+  img = list.files("./train_data_shuffled/images", full.names = TRUE, pattern = "*.jpg"),
+  mask = list.files("./train_data_shuffled/masks", full.names = TRUE, pattern = "*.jpg")
 )
 
 # split the data into training and validation datasets. 
-files <- initial_split(files, prop = 0.8)
+files <- initial_split(files, prop = 0.85)
 
 # prepare data for training
 training_dataset <- dl_prepare_data(training(files),train = TRUE,model_input_shape = c(448,448),batch_size = 10L)
@@ -372,9 +369,11 @@ diagnostics <- fit(pretrained_unet,
 
 plot(diagnostics)
 
-# ??? pretrained_unet <- load_model_hdf5("./pretrained_unet.h5")
+# save_model_hdf5(pretrained_unet, "./model-steets-3.h5")
 
-sample <- floor(runif(n = 1,min = 1,max = 4))
+# pretrained_unet <- load_model_hdf5("./model-steets-2.h5")
+
+sample <- floor(runif(n = 1,min = 1,max = 30))
 img_path <- as.character(testing(files)[[sample,1]])
 mask_path <- as.character(testing(files)[[sample,2]])
 img <- magick::image_read(img_path)
@@ -390,29 +389,6 @@ out <- magick::image_append(c(
 
 plot(out)
 
-predict_file <- function(img_path){
-  img_path <- as.character(img_path)
-  # mask_path <- as.character(img_path)
-  img <- magick::image_read(img_path)
-  # mask <- magick::image_read(mask_path)
-  pred <- magick::image_read(as.raster(predict(object = pretrained_unet,validation_dataset)[sample,,,]))
-  predict()
-  out <- magick::image_append(c(
-    magick::image_append(img, stack = TRUE), 
-    magick::image_append(pred, stack = TRUE)
-  )
-  )
-  
-  plot(out)
-  
-}
-
-predict_file("./train_data_wald/true/tile-121.jpg")
-
-
-test_dataset <- dl_prepare_data(train = F,predict = T,subsets_path="./train_data_wald/true/",model_input_shape = c(448,448),batch_size = 5L)
-
-system.time(predictions <- predict(pretrained_unet,test_dataset))
 
 #inspecting the network
 plot_layer_activations <- function(img_path, model, activations_layers,channels){
@@ -455,10 +431,24 @@ plot_layer_activations <- function(img_path, model, activations_layers,channels)
 }
 
 par(mfrow=c(1,1))
-plot(read_stars("./testarea_unet/subsets/25.jpg"),rgb=c(1,2,3))
+plot(read_stars("./T31_predict/T31_predict.0.tif.jpg"),rgb=c(1,2,3))
 
 #visualize layers 3 and 10, channels 1 to 20
 par(mfrow=c(3,4),mar=c(1,1,1,1),cex=0.5)
-plot_layer_activations(img_path = "./train_data_wald/true/tile-101.jpg", model=pretrained_unet ,activations_layers = c(2,3,5,6,8,9,10,12,13,14), channels = 1:4)
+plot_layer_activations(img_path = "./T31_predict/0.jpg", model=pretrained_unet ,activations_layers = c(2,3,5,6,8,9,10,12,13,14), channels = 1:4)
 
+
+
+path = "./T31_predict_4/";
+out = "./T31_predict_4_out"
+test_dataset <- dl_prepare_data(train = F,predict = T,subsets_path=path,model_input_shape = c(448,448),batch_size = 5L)
+
+system.time(predictions <- predict(pretrained_unet,test_dataset))
+
+count <- 0
+for (temp in list.files(path)) {
+  count <- count + 1
+  img <- magick::image_read(as.raster(predictions[count,,,]))
+  magick::image_write(img, path=paste(out, "/", count - 1, ".jpg", sep = ""), format="jpeg")
+}
 

@@ -1,4 +1,4 @@
 # Studienprojekt - Deep Learning in der Fernerkundung
 
-## Quellen
+## Sources
 * https://github.com/DaChro/ogh_summer_school_2020
